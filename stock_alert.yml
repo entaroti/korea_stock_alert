@@ -1,0 +1,30 @@
+# .github/workflows/volume-alert.yml
+name: Korea Volume Alert
+
+on:
+  schedule:
+    # 매주 일요일~목요일 21:17 UTC = 다음날 KST 06:17 (월~금)
+    - cron: "17 21 * * 0-4"
+  workflow_dispatch: {}  # 수동 실행 가능
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        # 필요 패키지 설치
+        run: pip install finance-datareader pandas requests
+
+      - name: Run alert script
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+        run: python volume_alert.py

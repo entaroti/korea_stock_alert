@@ -4,7 +4,7 @@ name: Korea Volume Alert
 on:
   schedule:
     # 매주 일요일~목요일 21:17 UTC = 다음날 KST 06:17 (월~금)
-    - cron: "17 21 * * 0-4"
+    - cron: "00 20 * * 0-4"
   workflow_dispatch: {}  # 수동 실행 가능
 
 jobs:

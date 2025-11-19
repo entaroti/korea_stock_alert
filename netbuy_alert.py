@@ -7,19 +7,33 @@ from pykrx import stock
 
 
 def send_message(message: str):
-    """텔레그램으로 메시지를 전송합니다."""
+    """텔레그램으로 메시지를 전송합니다 (디버그 로그 포함)."""
     token = os.environ.get("TELEGRAM_TOKEN")
     chat_id = os.environ.get("CHAT_ID")
+
+    print(f"[DEBUG] TELEGRAM_TOKEN starts with: {str(token)[:10] if token else None}")
+    print(f"[DEBUG] CHAT_ID: {chat_id}")
 
     if not token or not chat_id:
         print("❌ TELEGRAM_TOKEN 또는 CHAT_ID 환경변수가 설정되지 않았습니다.")
         return
 
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-    requests.post(
-        url,
-        data={"chat_id": chat_id, "text": message, "parse_mode": "Markdown"},
-    )
+    payload = {
+        "chat_id": chat_id,
+        "text": message,
+        "parse_mode": "Markdown",
+    }
+    try:
+        resp = requests.post(url, data=payload)
+        print(f"[DEBUG] Telegram response status: {resp.status_code}")
+        print(f"[DEBUG] Telegram response body: {resp.text}")
+        if resp.status_code != 200:
+            print("❌ 텔레그램 전송 실패")
+        else:
+            print("✅ 텔레그램 전송 성공")
+    except Exception as e:
+        print("❌ 텔레그램 전송 중 예외 발생:", repr(e))
 
 
 def get_recent_trading_window(n_days: int):

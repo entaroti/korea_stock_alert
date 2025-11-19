@@ -70,7 +70,7 @@ def get_netbuy_df(n_days: int, investor: str, top_n: int = 10) -> pd.DataFrame:
     # 정렬 및 상위 N개
     df_all = df_all.sort_values(by="순매수거래대금", ascending=False).head(top_n)
 
-    # 종목명, 순매수거래대금, 시가총액만 사용
+    # 인덱스(티커)는 여기선 안 쓰니 종목명, 순매수거래대금, 시가총액만 사용
     df_all = df_all[["종목명", "순매수거래대금", "시가총액"]].reset_index(drop=True)
     return df_all
 
@@ -89,10 +89,11 @@ def get_netbuy_df_combined(n_days: int, top_n: int = 10) -> pd.DataFrame:
     if df_i is None:
         df_i = pd.DataFrame()
 
+    # 없으면 빈 df
     if df_f.empty and df_i.empty:
         return pd.DataFrame()
 
-    # 티커 기준으로 outer join
+    # 두 df를 티커 기준으로 outer join
     df = pd.DataFrame()
 
     if not df_f.empty:
@@ -121,50 +122,30 @@ def get_netbuy_df_combined(n_days: int, top_n: int = 10) -> pd.DataFrame:
     return df
 
 
-# 🔽🔽🔽 여기! get_netbuy_df_combined 바로 아래에 추가 🔽🔽🔽
-def fmt_table(title: str, emoji: str, df: pd.DataFrame, col_net: str) -> str:
+def make_table_block(title: str, emoji: str, df: pd.DataFrame, col_net: str) -> str:
     """
     df: ['종목명', col_net, '시가총액']
     col_net: '순매수거래대금' or '합산순매수'
-    텔레그램에서 칼같이 줄 맞는 표를 만들기 위한 고정폭 포맷터
     """
     if df is None or df.empty:
         return f"{emoji} *{title}*\n(해당 조건을 만족하는 종목이 없습니다.)"
 
-    # 열 너비 설정 (필요하면 조절 가능)
-    w_rank = 4      # 번호
-    w_name = 18     # 종목명
-    w_net = 15      # 순매수금액(억)
-    w_mc = 12       # 시총(조)
-
-    header = (
-        f"{'번호':<{w_rank}}"
-        f"{'종목명':<{w_name}}"
-        f"{'순매수금액(억)':>{w_net}}"
-        f"{'시총(조)':>{w_mc}}"
-    )
-
+    header = "번호\t종목명\t순매수금액(억)\t시가총액(조)"
     lines = [f"{emoji} *{title}*", "```text", header]
 
     for i, row in df.iterrows():
-        rank = f"{i+1:02d}"
+        rank = i + 1
         name = row["종목명"]
-        net_eok = row[col_net] / 1e8
+        net_eok = row[col_net] / 1e8              # 억 단위
         mc_jo = 0.0
         if not pd.isna(row["시가총액"]):
-            mc_jo = row["시가총액"] / 1e12
+            mc_jo = row["시가총액"] / 1e12       # 조 단위
 
-        line = (
-            f"{rank:<{w_rank}}"
-            f"{name:<{w_name}}"
-            f"{net_eok:>{w_net}.1f}"
-            f"{mc_jo:>{w_mc}.2f}"
-        )
+        line = f"{rank:02d}\t{name}\t{net_eok:,.1f}\t{mc_jo:,.2f}"
         lines.append(line)
 
     lines.append("```")
     return "\n".join(lines)
-# 🔼🔼🔼 여기까지가 새로 들어가는 부분 🔼🔼🔼
 
 
 def main():
@@ -178,12 +159,12 @@ def main():
     df_fi_10 = get_netbuy_df_combined(10, top_n=10)
 
     blocks = []
-    blocks.append(fmt_table("외국인 5일 순매수 Top 10", "🌍", df_f_5, "순매수거래대금"))
-    blocks.append(fmt_table("외국인 10일 순매수 Top 10", "🌍", df_f_10, "순매수거래대금"))
-    blocks.append(fmt_table("기관 5일 순매수 Top 10", "🏦", df_i_5, "순매수거래대금"))
-    blocks.append(fmt_table("기관 10일 순매수 Top 10", "🏦", df_i_10, "순매수거래대금"))
-    blocks.append(fmt_table("외국인+기관 5일 순매수 Top 10", "🤝", df_fi_5, "합산순매수"))
-    blocks.append(fmt_table("외국인+기관 10일 순매수 Top 10", "🤝", df_fi_10, "합산순매수"))
+    blocks.append(make_table_block("외국인 5일 순매수 Top 10", "🌍", df_f_5, "순매수거래대금"))
+    blocks.append(make_table_block("외국인 10일 순매수 Top 10", "🌍", df_f_10, "순매수거래대금"))
+    blocks.append(make_table_block("기관 5일 순매수 Top 10", "🏦", df_i_5, "순매수거래대금"))
+    blocks.append(make_table_block("기관 10일 순매수 Top 10", "🏦", df_i_10, "순매수거래대금"))
+    blocks.append(make_table_block("외국인+기관 5일 순매수 Top 10", "🤝", df_fi_5, "합산순매수"))
+    blocks.append(make_table_block("외국인+기관 10일 순매수 Top 10", "🤝", df_fi_10, "합산순매수"))
 
     message = "\n\n".join(blocks)
     send_message(message)

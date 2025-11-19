@@ -29,7 +29,4 @@ jobs:
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
-        # 파일이 루트에 있을 경우 그대로 실행
-        run: python volume_alert.py
-        # 만약 /korea_stock_alert/ 폴더 안에 있다면 이렇게 변경:
-        # run: python ./korea_stock_alert/volume_alert.py
+        run: python ./korea_stock_alert/volume_alert.py

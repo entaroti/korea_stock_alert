@@ -26,8 +26,8 @@ jobs:
 
     - name: Create .env file
       run: |
-        echo "TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}" >> .env
-        echo "TELEGRAM_CHAT_ID=${{ secrets.TELEGRAM_CHAT_ID }}" >> .env
+        echo "TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_TOKEN }}" >> .env
+        echo "TELEGRAM_CHAT_ID=${{ secrets.CHAT_ID }}" >> .env
 
     - name: Run Uptrend Alert Script
       run: |

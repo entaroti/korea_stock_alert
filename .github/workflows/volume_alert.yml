@@ -1,33 +1,35 @@
-name: Uptrend Stock Alert
+name: Korea Volume Alert
 
 on:
   schedule:
-    # 매일 평일 오전 08:17 KST (UTC 기준 전날 23:17)
-    - cron: "17 23 * * 0-4"
-  workflow_dispatch:  # 수동 실행도 가능하게
+    # 매주 일요일~목요일 20:00 UTC = 다음날 한국시간 오전 5:00
+    - cron: "0 20 * * 0-4"
+  workflow_dispatch: {}   # 수동 실행 버튼도 활성화
 
 jobs:
-  run-uptrend-alert:
+  run:
     runs-on: ubuntu-latest
-
-    env:
-      TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-      CHAT_ID: ${{ secrets.CHAT_ID }}
-
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: "3.10"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install pykrx pandas requests
+      - name: Install dependencies
+        run: |
+          pip install finance-datareader pandas requests
 
-    - name: Run Uptrend Alert Script
-      run: |
-        python uptrend_alert.py
+      - name: List current directory (for debugging)
+        run: ls -R
+
+      - name: Run alert script
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+        # 파일이 루트에 있을 경우 그대로 실행
+        run: python volume_alert.py
+        # 만약 /korea_stock_alert/ 폴더 안에 있다면 이렇게 변경:
+        # run: python ./korea_stock_alert/volume_alert.py

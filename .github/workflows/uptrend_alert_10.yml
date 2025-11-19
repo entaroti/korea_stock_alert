@@ -30,4 +30,4 @@ jobs:
 
     - name: Run Uptrend Alert Script
       run: |
-        python uptrend_alert.py
+        python uptrend_alert_10.py

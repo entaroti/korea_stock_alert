@@ -18,135 +18,114 @@ def send_message(message: str):
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     requests.post(
         url,
-        data={
-            "chat_id": chat_id,
-            "text": message,
-            "parse_mode": "Markdown",
-        },
+        data={"chat_id": chat_id, "text": message, "parse_mode": "Markdown"},
     )
 
 
-def collect_netbuy_data(top_n: int = 10):
-    """
-    최근 5/10거래일 기준으로
-    - 외국인 순매수 상위
-    - 기관 순매수 상위
-    - 외국인+기관 순매수 상위
-    를 계산해서 DataFrame 6개를 반환합니다.
-    """
-
+def get_recent_trading_window(n_days: int):
+    """최근 n개 '영업일' 구간의 (start, end) 날짜 문자열(YYYYMMDD) 반환"""
     today = datetime.now().date()
-    start_date = today - timedelta(days=30)  # 여유 있게 30일치
-    start = start_date.strftime("%Y%m%d")
+    start_scan = today - timedelta(days=40)  # 여유 있게 40일 조회
+    start = start_scan.strftime("%Y%m%d")
     end = today.strftime("%Y%m%d")
-    today_str = today.strftime("%Y%m%d")
 
-    # 시가총액: 오늘 기준 KOSPI + KOSDAQ
-    mc_kospi = stock.get_market_cap_by_ticker(today_str, market="KOSPI")
-    mc_kosdaq = stock.get_market_cap_by_ticker(today_str, market="KOSDAQ")
-    mc_all = pd.concat([mc_kospi, mc_kosdaq])
-    # mc_all.columns 예: ['시가총액', '상장주식수', ...]
-    mc_all = mc_all[["시가총액"]]
+    # KOSPI 기준으로 최근 영업일 리스트 가져오기
+    tv = stock.get_market_trading_value_by_date(start, end, "KOSPI")
+    dates = tv.index  # DatetimeIndex
 
-    # 종목 리스트는 시총 데이터 기준으로
-    tickers = mc_all.index.tolist()
+    if len(dates) < n_days:
+        # 데이터가 너무 적으면 전체를 그냥 사용
+        start_date = dates[0]
+        end_date = dates[-1]
+    else:
+        start_date = dates[-n_days]
+        end_date = dates[-1]
 
-    # 결과 저장용 리스트
-    f_5_list = []
-    f_10_list = []
-    i_5_list = []
-    i_10_list = []
-    fi_5_list = []
-    fi_10_list = []
-
-    for code in tickers:
-        try:
-            # 최근 30일 동안 해당 종목의 투자자별 거래대금(순매수) 조회
-            # detail=True → 투자자 구분 컬럼(개인, 외국인, 기관합계 등)
-            tv_df = stock.get_market_trading_value_by_date(start, end, code, detail=True)
-
-            if tv_df is None or tv_df.empty:
-                continue
-
-            tv_df = tv_df.fillna(0)
-
-            # pykrx 기준 컬럼 이름 가정: '외국인', '기관합계'
-            if ("외국인" not in tv_df.columns) or ("기관합계" not in tv_df.columns):
-                continue
-
-            # 최소 5거래일 이상만 사용
-            if tv_df.shape[0] < 5:
-                continue
-
-            last_5 = tv_df.tail(5)
-            # 10일은 여유 있으면 계산
-            last_10 = tv_df.tail(10) if tv_df.shape[0] >= 10 else None
-
-            # 5일 순매수
-            f_5 = last_5["외국인"].sum()
-            i_5 = last_5["기관합계"].sum()
-            fi_5 = f_5 + i_5
-
-            # 10일 순매수
-            f_10 = last_10["외국인"].sum() if last_10 is not None else 0.0
-            i_10 = last_10["기관합계"].sum() if last_10 is not None else 0.0
-            fi_10 = f_10 + i_10
-
-            name = stock.get_market_ticker_name(code)
-            mktcap = float(mc_all.loc[code, "시가총액"]) if code in mc_all.index else 0.0
-
-            # 순매수 > 0 인 종목만
-            if f_5 > 0:
-                f_5_list.append(
-                    {"code": code, "name": name, "net": float(f_5), "mktcap": mktcap}
-                )
-            if f_10 > 0:
-                f_10_list.append(
-                    {"code": code, "name": name, "net": float(f_10), "mktcap": mktcap}
-                )
-            if i_5 > 0:
-                i_5_list.append(
-                    {"code": code, "name": name, "net": float(i_5), "mktcap": mktcap}
-                )
-            if i_10 > 0:
-                i_10_list.append(
-                    {"code": code, "name": name, "net": float(i_10), "mktcap": mktcap}
-                )
-            if fi_5 > 0:
-                fi_5_list.append(
-                    {"code": code, "name": name, "net": float(fi_5), "mktcap": mktcap}
-                )
-            if fi_10 > 0:
-                fi_10_list.append(
-                    {"code": code, "name": name, "net": float(fi_10), "mktcap": mktcap}
-                )
-
-        except Exception:
-            # 개별 종목 에러(정지/상폐 등)는 무시
-            continue
-
-    def to_sorted_df(lst):
-        if not lst:
-            return pd.DataFrame()
-        df = pd.DataFrame(lst)
-        df = df.sort_values(by="net", ascending=False).reset_index(drop=True)
-        return df.head(top_n)
-
-    df_f_5 = to_sorted_df(f_5_list)
-    df_f_10 = to_sorted_df(f_10_list)
-    df_i_5 = to_sorted_df(i_5_list)
-    df_i_10 = to_sorted_df(i_10_list)
-    df_fi_5 = to_sorted_df(fi_5_list)
-    df_fi_10 = to_sorted_df(fi_10_list)
-
-    return df_f_5, df_f_10, df_i_5, df_i_10, df_fi_5, df_fi_10
+    return start_date.strftime("%Y%m%d"), end_date.strftime("%Y%m%d")
 
 
-def make_table_block(title: str, emoji: str, df: pd.DataFrame) -> str:
+def get_netbuy_df(n_days: int, investor: str, top_n: int = 10) -> pd.DataFrame:
     """
-    df: columns = ['code', 'name', 'net', 'mktcap']
-    net: 원 단위 순매수금액 → 억 단위로 변환
-    mktcap: 원 단위 시총 → 조 단위로 변환
+    최근 n영업일 동안 특정 투자자의 종목별 순매수 상위 리스트 반환
+    - investor: '외국인', '기관합계' 등
+    - 순매수거래대금 > 0 인 종목만
+    - KOSPI + KOSDAQ 전체 (market='ALL')
+    """
+    start, end = get_recent_trading_window(n_days)
+
+    # KOSPI + KOSDAQ 한 번에
+    df_all = stock.get_market_net_purchases_of_equities(start, end, "ALL", investor)
+    if df_all is None or df_all.empty:
+        return pd.DataFrame()
+
+    # 순매수거래대금 > 0 인 종목만
+    df_all = df_all[df_all["순매수거래대금"] > 0].copy()
+    if df_all.empty:
+        return pd.DataFrame()
+
+    # 시가총액 붙이기 (end 기준)
+    mc = stock.get_market_cap_by_ticker(end, market="ALL")[["시가총액"]]
+    df_all = df_all.join(mc, how="left")
+
+    # 정렬 및 상위 N개
+    df_all = df_all.sort_values(by="순매수거래대금", ascending=False).head(top_n)
+
+    # 인덱스(티커)는 여기선 안 쓰니 종목명, 순매수거래대금, 시가총액만 사용
+    df_all = df_all[["종목명", "순매수거래대금", "시가총액"]].reset_index(drop=True)
+    return df_all
+
+
+def get_netbuy_df_combined(n_days: int, top_n: int = 10) -> pd.DataFrame:
+    """
+    최근 n영업일 동안 '외국인 + 기관합계' 순매수 상위 리스트
+    """
+    start, end = get_recent_trading_window(n_days)
+
+    df_f = stock.get_market_net_purchases_of_equities(start, end, "ALL", "외국인")
+    df_i = stock.get_market_net_purchases_of_equities(start, end, "ALL", "기관합계")
+
+    if df_f is None:
+        df_f = pd.DataFrame()
+    if df_i is None:
+        df_i = pd.DataFrame()
+
+    # 없으면 빈 df
+    if df_f.empty and df_i.empty:
+        return pd.DataFrame()
+
+    # 두 df를 티커 기준으로 outer join
+    df = pd.DataFrame()
+
+    if not df_f.empty:
+        df["종목명"] = df_f["종목명"]
+        df["외국인순매수"] = df_f["순매수거래대금"]
+    if not df_i.empty:
+        if "종목명" not in df.columns:
+            df["종목명"] = df_i["종목명"]
+        df["기관순매수"] = df_i["순매수거래대금"]
+
+    df["외국인순매수"] = df.get("외국인순매수", 0).fillna(0)
+    df["기관순매수"] = df.get("기관순매수", 0).fillna(0)
+    df["합산순매수"] = df["외국인순매수"] + df["기관순매수"]
+
+    # 합산 순매수 > 0 인 종목만
+    df = df[df["합산순매수"] > 0].copy()
+    if df.empty:
+        return pd.DataFrame()
+
+    # 시가총액 붙이기
+    mc = stock.get_market_cap_by_ticker(end, market="ALL")[["시가총액"]]
+    df = df.join(mc, how="left")
+
+    df = df.sort_values(by="합산순매수", ascending=False).head(top_n)
+    df = df[["종목명", "합산순매수", "시가총액"]].reset_index(drop=True)
+    return df
+
+
+def make_table_block(title: str, emoji: str, df: pd.DataFrame, col_net: str) -> str:
+    """
+    df: ['종목명', col_net, '시가총액']
+    col_net: '순매수거래대금' or '합산순매수'
     """
     if df is None or df.empty:
         return f"{emoji} *{title}*\n(해당 조건을 만족하는 종목이 없습니다.)"
@@ -156,17 +135,13 @@ def make_table_block(title: str, emoji: str, df: pd.DataFrame) -> str:
 
     for i, row in df.iterrows():
         rank = i + 1
-        name = row["name"]
+        name = row["종목명"]
+        net_eok = row[col_net] / 1e8              # 억 단위
+        mc_jo = 0.0
+        if not pd.isna(row["시가총액"]):
+            mc_jo = row["시가총액"] / 1e12       # 조 단위
 
-        net_eok = row["net"] / 1e8          # 억 단위
-        mc_jo = row["mktcap"] / 1e12 if row["mktcap"] > 0 else 0.0  # 조 단위
-
-        line = (
-            f"{rank:02d}\t"
-            f"{name}\t"
-            f"{net_eok:,.1f}\t"
-            f"{mc_jo:,.2f}"
-        )
+        line = f"{rank:02d}\t{name}\t{net_eok:,.1f}\t{mc_jo:,.2f}"
         lines.append(line)
 
     lines.append("```")
@@ -174,35 +149,22 @@ def make_table_block(title: str, emoji: str, df: pd.DataFrame) -> str:
 
 
 def main():
-    (
-        df_f_5,
-        df_f_10,
-        df_i_5,
-        df_i_10,
-        df_fi_5,
-        df_fi_10,
-    ) = collect_netbuy_data(top_n=10)  # 필요하면 20으로 늘려도 됨
+    # 외국인/기관 5일, 10일 순매수
+    df_f_5 = get_netbuy_df(5, "외국인", top_n=10)
+    df_f_10 = get_netbuy_df(10, "외국인", top_n=10)
+    df_i_5 = get_netbuy_df(5, "기관합계", top_n=10)
+    df_i_10 = get_netbuy_df(10, "기관합계", top_n=10)
+
+    df_fi_5 = get_netbuy_df_combined(5, top_n=10)
+    df_fi_10 = get_netbuy_df_combined(10, top_n=10)
 
     blocks = []
-
-    blocks.append(
-        make_table_block("외국인 5일 순매수 Top 10", "🌍", df_f_5)
-    )
-    blocks.append(
-        make_table_block("외국인 10일 순매수 Top 10", "🌍", df_f_10)
-    )
-    blocks.append(
-        make_table_block("기관 5일 순매수 Top 10", "🏦", df_i_5)
-    )
-    blocks.append(
-        make_table_block("기관 10일 순매수 Top 10", "🏦", df_i_10)
-    )
-    blocks.append(
-        make_table_block("외국인+기관 5일 순매수 Top 10", "🤝", df_fi_5)
-    )
-    blocks.append(
-        make_table_block("외국인+기관 10일 순매수 Top 10", "🤝", df_fi_10)
-    )
+    blocks.append(make_table_block("외국인 5일 순매수 Top 10", "🌍", df_f_5, "순매수거래대금"))
+    blocks.append(make_table_block("외국인 10일 순매수 Top 10", "🌍", df_f_10, "순매수거래대금"))
+    blocks.append(make_table_block("기관 5일 순매수 Top 10", "🏦", df_i_5, "순매수거래대금"))
+    blocks.append(make_table_block("기관 10일 순매수 Top 10", "🏦", df_i_10, "순매수거래대금"))
+    blocks.append(make_table_block("외국인+기관 5일 순매수 Top 10", "🤝", df_fi_5, "합산순매수"))
+    blocks.append(make_table_block("외국인+기관 10일 순매수 Top 10", "🤝", df_fi_10, "합산순매수"))
 
     message = "\n\n".join(blocks)
     send_message(message)

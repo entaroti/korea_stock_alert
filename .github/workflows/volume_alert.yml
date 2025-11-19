@@ -29,4 +29,4 @@ jobs:
         env:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
-        run: python ./korea_stock_alert/volume_alert.py
+        run: python volume_alert.py

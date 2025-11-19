@@ -3,7 +3,7 @@ name: Uptrend Stock Alert
 on:
   schedule:
     # 매일 평일 오전 05:00 KST (UTC 기준 하루 전 20:00)
-    - cron: "17 23 * * 0-4"
+    - cron: "00 20 * * 0-4"
   workflow_dispatch:  # 수동 실행 가능
 
 jobs:

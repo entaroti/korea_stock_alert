@@ -1,4 +1,4 @@
-name: Uptrend Stock Alert
+name: Uptrend Stock Alert 5
 
 on:
   schedule:

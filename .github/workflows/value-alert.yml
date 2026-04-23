@@ -3,7 +3,7 @@ name: Value Alert Bot
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0 20 * * 0-4"  # 한국시간 오전 5시 (월~금)
+    - cron: "0 18 * * 0-4"  # 한국시간 오전 3시 (월~금)
 
 jobs:
   run-bot:

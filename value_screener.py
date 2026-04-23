@@ -9,7 +9,7 @@ import traceback
 
 
 # -----------------------------
-# 텔레그램 전송
+# 1. 텔레그램 전송
 # -----------------------------
 def send_message(message):
     token = os.environ.get("TELEGRAM_TOKEN")
@@ -34,11 +34,11 @@ def send_message(message):
 
 
 # -----------------------------
-# 데이터 수집 (전체 종목)
+# 2. 핵심 필터 (전일 vs 전전일)
 # -----------------------------
 def get_candidates():
     today = datetime.now().date()
-    start = today - timedelta(days=10)
+    start = today - timedelta(days=5)
 
     kospi = fdr.StockListing("KOSPI")
     kosdaq = fdr.StockListing("KOSDAQ")
@@ -54,23 +54,26 @@ def get_candidates():
 
                 df = fdr.DataReader(code, start, today)
 
-                if df is None or len(df) < 5:
+                # 최소 3일 필요
+                if df is None or len(df) < 3:
                     continue
 
+                # 거래대금 계산
                 df["Value"] = df["Close"] * df["Volume"]
 
-                avg_value = df["Value"].iloc[:-1].mean()
-                today_value = df["Value"].iloc[-1]
+                value_d2 = df["Value"].iloc[-3]  # 전전일
+                value_d1 = df["Value"].iloc[-2]  # 전일
 
-                if avg_value == 0:
+                if value_d2 == 0:
                     continue
 
-                if today_value > avg_value * 3:
-                    change = (df["Close"].iloc[-1] / df["Close"].iloc[0] - 1) * 100
+                # 🎯 핵심 조건
+                if value_d1 >= value_d2 * 5:
+                    change = (df["Close"].iloc[-2] / df["Close"].iloc[-3] - 1) * 100
 
                     results.append({
                         "종목명": name,
-                        "거래대금": today_value,
+                        "거래대금": value_d1,
                         "수익률": change,
                         "시가총액": marcap
                     })
@@ -82,7 +85,7 @@ def get_candidates():
 
 
 # -----------------------------
-# 시총 분류
+# 3. 시총 4분류
 # -----------------------------
 def split_by_cap4(df):
     g1 = df[df["시가총액"] < 2e11]
@@ -93,12 +96,18 @@ def split_by_cap4(df):
     return g1, g2, g3, g4
 
 
+# -----------------------------
+# 4. Top 10
+# -----------------------------
 def get_top(df):
     if df.empty:
         return df
     return df.sort_values(by="거래대금", ascending=False).head(10).reset_index(drop=True)
 
 
+# -----------------------------
+# 5. 출력 포맷
+# -----------------------------
 def format_table(title, df):
     if df.empty:
         return f"📭 {title}\n(조건 만족 종목 없음)"
@@ -122,11 +131,11 @@ def format_table(title, df):
 
 
 # -----------------------------
-# 메인
+# 6. 메인 실행
 # -----------------------------
 def main():
     try:
-        send_message("🚀 Value Screener 시작")
+        send_message("🚀 전일 거래대금 급증 스크리너 시작")
 
         df = get_candidates()
 
@@ -144,7 +153,8 @@ def main():
         ]
 
         for title, g in groups:
-            send_message(format_table(title, get_top(g)))
+            msg = format_table(title, get_top(g))
+            send_message(msg)
 
     except Exception:
         err = traceback.format_exc()

@@ -102,7 +102,7 @@ def split_by_cap4(df):
 def get_top(df):
     if df.empty:
         return df
-    return df.sort_values(by="거래대금", ascending=False).head(10).reset_index(drop=True)
+    return df.sort_values(by="거래대금", ascending=False).reset_index(drop=True)
 
 
 # -----------------------------
